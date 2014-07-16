@@ -7,7 +7,7 @@ This program is coded in 100% in Java and uses no external libraries.
 Created for a friend of mine who wanted to be able to quickly - and automatically - save all of the images that were posted in a specific imageboard's thread. In the posted screenshots of the program, I demonstrated downloading wallpapers from a wallpaper thread.
 
 
-USING THE PROGRAM
+Using this program
 ======================
 The .webm checkbox gives to user the option of either downloading or ignoring .webm filetypes which are video files and have slightly larger filesizes than images.
 
