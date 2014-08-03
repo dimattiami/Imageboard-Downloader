@@ -1,6 +1,5 @@
 package dimattia.imageboard.downloader;
 
-
 import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
@@ -17,10 +16,6 @@ import java.util.Vector;
  */
 public class ImageFinder {
 	private static boolean getWebm = true;
-
-	/*
-	 * public static void main(String[] args) { new ImageFinder(); }
-	 */
 
 	/**
 	 * 
@@ -60,7 +55,6 @@ public class ImageFinder {
 				; // Do nothing - this is webm & user does not want them
 			else
 				imageLinks.add(fileName);
-
 		}
 		return imageLinks;
 	}

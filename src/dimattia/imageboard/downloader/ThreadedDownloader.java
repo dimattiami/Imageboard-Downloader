@@ -1,6 +1,5 @@
 package dimattia.imageboard.downloader;
 
-
 import java.io.BufferedInputStream;
 import java.io.File;
 import java.io.FileNotFoundException;
@@ -22,13 +21,19 @@ import javax.swing.JOptionPane;
 public class ThreadedDownloader {
 	private String saveLocationStr;
 	private String URL;
-	private Vector<String> imageLocations;
-	private int amountOfThreads = 1;
+	private String status;
+	private DownloadThread dT;
+	private Thread updateThread;
 	private Thread[] downloadThreads;
+	private Vector<String> imageLocations;
+	private Iterator<String> vecIterator;
+	private int amountOfThreads = 1;
+	private int downloadCount = 0;
+	private int autoRefreshTime;
+	private boolean getWebm;
+	private boolean finishedMessageShowed;
 	private boolean requestStop = false;
 	private boolean isDoneDownloading = false;
-	private int downloadCount = 0;
-	private String status;
 
 	/**
 	 * Gets the list of images to be downloaded in Vector format and starts the
@@ -42,36 +47,47 @@ public class ThreadedDownloader {
 	 *            Allows for multithreading
 	 * @param getWebm
 	 *            Determines whether or not webm files should be downloaded
+	 * @throws IOException
+	 *             some unknown error occurred
+	 * @throws FileNotFoundException
+	 *             thread is 404ed
+	 * @throws UserMessedUpException
+	 *             if the user doesn't provide enough information
 	 */
 
 	public ThreadedDownloader(String URL, String saveLoc, int threadAmt,
-			boolean getWebm) {
+			boolean getWebm, int refreshTime) throws FileNotFoundException,
+			IOException, UserMessedUpException {
 
-		amountOfThreads = threadAmt;
-		this.URL = URL;
-		saveLocationStr = saveLoc;
-		/*
-		 * System.out.println("URL:" + this.URL + "\nThread amt: " +
-		 * amountOfThreads + "\nSave location: " + saveLocationStr +
-		 * "\nGet webms: " + getWebm);
-		 */
-		try {
-			imageLocations = ImageFinder.getImageLinks(URL, getWebm);
-
-			new File(saveLocationStr + "\\/").mkdir(); // creates the path if it
-														// doesn't
-														// exist
-		} catch (FileNotFoundException e) { // Notify user that thread 404ed
-			JOptionPane.showMessageDialog(null,
-					"Thread 404; unable to download.", "404",
-					JOptionPane.WARNING_MESSAGE);
-		} catch (IOException e) { // Other error catching
-			JOptionPane.showMessageDialog(null,
-					"An error has occurred:\n" + e.getMessage(), "Error",
-					JOptionPane.WARNING_MESSAGE);
+		if (URL.equals("")) {
+			GUI.resetGUI();
+			JOptionPane.showMessageDialog(null, "Please provide a thread URL");
+			throw new UserMessedUpException();
 		}
 
-		DownloadThread dT = new DownloadThread();
+		if (saveLoc.equals("")) {
+			GUI.resetGUI();
+			JOptionPane
+					.showMessageDialog(null, "Please define a save location");
+			throw new UserMessedUpException();
+		}
+
+		this.amountOfThreads = threadAmt;
+		this.URL = URL;
+		this.saveLocationStr = saveLoc;
+		this.autoRefreshTime = refreshTime;
+		this.getWebm = getWebm;
+		this.downloadCount = 0;
+
+		finishedMessageShowed = false;
+
+		imageLocations = ImageFinder.getImageLinks(URL, this.getWebm);
+
+		new File(saveLocationStr + "\\/").mkdir(); // creates the path if it
+													// doesn't
+													// exist
+
+		dT = new DownloadThread();
 
 		if (requestStop == true) // Make sure the downloading thread(s) are not
 									// in request-to-stop mode
@@ -79,10 +95,16 @@ public class ThreadedDownloader {
 
 		downloadThreads = new Thread[amountOfThreads];
 
+		vecIterator = imageLocations.iterator();
+
 		for (Thread t : downloadThreads) {
 			t = new Thread(dT);
 			t.start(); // Start the threads
 		}
+	}
+
+	public void tellGuiToRedrawUpdates() {
+		GUI.redrawUpdates(status, getPercentDone());
 	}
 
 	/**
@@ -90,9 +112,11 @@ public class ThreadedDownloader {
 	 * execution and updates the status
 	 */
 	public void stopDownload() {
-		status = "Status: download stopped @ " + downloadCount + "/"
-				+ imageLocations.size() + " files";
 		requestStop = true;
+		status = "Status: Download stopped @ " + downloadCount + "/"
+				+ imageLocations.size() + " files";
+		if (updateThread != null)
+			updateThread.interrupt();
 	}
 
 	/**
@@ -115,7 +139,97 @@ public class ThreadedDownloader {
 	public int getPercentDone() {
 		if (downloadCount == 0)
 			return 0;
+		if (isDoneDownloading())
+			return 100;
 		return (int) (((double) downloadCount / imageLocations.size()) * 100);
+	}
+
+	/**
+	 * Autorefreshes the thread until 404 or until user stops the autorefresh
+	 * 
+	 * @author Mike
+	 *
+	 */
+	public void startAutoRefresh() {
+		// Make sure all running threads are killed
+		for (Thread t : downloadThreads) {
+			try {
+				t.interrupt();
+				t = null;
+			} catch (Exception ex) {
+
+			}
+		}
+		updateThread = new Thread(new AutoRefreshThread());
+		updateThread.start();
+		// updateThread.run();
+		// updateThread.interrupt();
+	}
+
+	/**
+	 * Calls the sleep method for countdown until next refresh, and then calls
+	 * another downloader to download newly posted images
+	 * 
+	 * @author Mike
+	 *
+	 */
+	class AutoRefreshThread implements Runnable {
+		public void run() {
+			DownloadThread updater = new DownloadThread();
+
+			try {
+				GUI.fillProgressBar();
+				requestStop = false;
+
+				do {
+					autoRefreshCountdown();
+					downloadCount = imageLocations.size();
+					imageLocations = ImageFinder.getImageLinks(URL, getWebm);
+					vecIterator = imageLocations.iterator();
+
+					status = "Status: Downloading new images";
+					tellGuiToRedrawUpdates();
+					// MAKE SURE TO CALL run() AND DON'T PUT IN A THREAD,
+					// OTHERWISE A NEW THREAD IS STARTED !!
+					updater.run();
+				} while (!requestStop);
+			} catch (IOException e) {
+				// System.out.println(Thread.currentThread().getName()
+				// + " hit 404");
+				GUI.resetGUI();
+				status = "Status: Thread 404ed. Downloaded "
+						+ imageLocations.size()
+						+ " images. Waiting for user input.";
+				JOptionPane
+						.showMessageDialog(
+								null,
+								"Error encountered while auto-refeshing. Possible thread 404?\nStopping download");
+				return;
+			}
+			status = "Status: Auto-refresh aborted. Downloaded "
+					+ imageLocations.size()
+					+ " images. Waiting for user input.";
+			GUI.updateStatus();
+		}
+
+	}
+
+	/**
+	 * Displays time until next auto-refresh
+	 */
+	void autoRefreshCountdown() {
+		for (int i = autoRefreshTime; i > 0; i--) {
+			status = "Status: Auto-refreshing thread in " + i + " seconds";
+			GUI.updateStatus();
+			try {
+				Thread.sleep(1000);
+			} catch (InterruptedException e) {
+				requestStop = true;
+				GUI.updateGUI();
+			}
+		}
+		status = "Status: Checking for updates";
+		tellGuiToRedrawUpdates();
 	}
 
 	/**
@@ -125,43 +239,46 @@ public class ThreadedDownloader {
 	 *
 	 */
 	class DownloadThread implements Runnable {
-		private Iterator<String> it = imageLocations.iterator(); // Iterator for
-																	// the
-																	// vector
-																	// holding
-																	// image
-																	// locations
-		private boolean threadNotFoundMsgDisplayed = false; // If message has
-															// already been
-															// displayed that
-															// the thread was
-															// not found
-
 		public void run() {
-			isDoneDownloading = false; // Just incase...
+
+			isDoneDownloading = false; // Just incase..
 
 			final String urlBeginning = "http://i.4cdn.org/"; // Beginning of
 																// the image URL
-
-			while (it.hasNext()) {
-				if (requestStop)
+			while (vecIterator.hasNext()) {
+				if (requestStop) {
+					status = "Status: Download stopped @ " + downloadCount
+							+ "/" + imageLocations.size() + " files";
+					GUI.updateStatus();
 					break;
-				status = "Status: downloading " + downloadCount + "/"
-						+ imageLocations.size();
-				String curURL = it.next(); // Board & file name
-				String fileName = curURL.split("/")[1]; // File name only
+				}
+				status = "Status: Downloading " + ((downloadCount / 2) + 1)
+						+ "/" + imageLocations.size();
+				String curURL = null;
+				String fileName = null;
+				try {
+					curURL = vecIterator.next(); // Board & file name
+					fileName = curURL.split("/")[1]; // File name only
+				} catch (Exception ex) {
+					// Just so an error is not thrown.
+				}
+
 				FileOutputStream out = null;
 				try {
 					URL pictureURL = new URL(urlBeginning + curURL); // Connects
 																		// to
 																		// URL
+					synchronized (this) {
+						downloadCount++; // Increment amount of images
+											// downloaded
+					}
 					// Check if file already exists, if does, skip downloading
-
 					if (new File(saveLocationStr + "\\" + fileName).exists()) {
-						// System.out.println("Exists..");
-						downloadCount++;
+						// System.out.println(fileName+" Exists..");
 						continue;
 					}
+
+					GUI.redrawUpdates(status, getPercentDone());
 
 					BufferedInputStream ins = new BufferedInputStream(
 							pictureURL.openStream()); // Creates reader for
@@ -169,22 +286,16 @@ public class ThreadedDownloader {
 
 					out = new FileOutputStream(saveLocationStr + "\\"
 							+ fileName); // Creates file writer
-					int next;
 
+					int next;
+					// System.out.println("writing " + fileName);
 					while ((next = ins.read()) != -1) {
 						out.write(next); // Write to file
 					}
-					downloadCount++; // Increment amount of images downloaded
-				} catch (FileNotFoundException e) { // Glitch when thread is
-													// still active, but images
-													// are 404ed
-					if (threadNotFoundMsgDisplayed == false) {
-						threadNotFoundMsgDisplayed = true;
-						stopDownload();
-						JOptionPane.showMessageDialog(null,
-								"Thread found, but images not.\n"
-										+ "Try a different thread.");
-					}
+					// System.out.println(fileName + "<-downloaded");
+				} catch (FileNotFoundException e) {
+					System.out.println("Error downloading file " + fileName
+							+ " (not found)");
 				} catch (MalformedURLException e) {
 					e.printStackTrace();
 				} catch (IOException e) {
@@ -198,20 +309,46 @@ public class ThreadedDownloader {
 						}
 				}
 			}
-			if (!it.hasNext()) {
+			if (getPercentDone() == 100)
 				isDoneDownloading = true;
+			else
+				return;
+
+			if (finishedMessageShowed)
+				return;
+
+			finishedMessageShowed = true;
+
+			if (autoRefreshTime == -1) {
+				// GUI.resetGUI();
+				status = "Status: Download complete (" + imageLocations.size()
+						+ "/" + imageLocations.size()
+						+ ") Waiting for user input.";
+				System.out.println(status + "," + getPercentDone());
+				GUI.resetGUI();
+				GUI.updateGUI();
+				JOptionPane.showMessageDialog(null,
+						"Thread finished downloading.");
+			} else {
+				startAutoRefresh();
+				JOptionPane.showMessageDialog(null,
+						"Thread finished downloading.\nAuto-refreshing every "
+								+ autoRefreshTime + " seconds.");
 			}
 		}
 
 	}
+}
 
-	/**
-	 * Allows user to specify amount of threads to use
-	 * 
-	 * @param amt
-	 *            amount of threads to use
-	 */
-	public void setAmountOfThreads(int amt) {
-		amountOfThreads = amt;
+/**
+ * Exception that is thrown whenever user does not provide enough information
+ * 
+ * @author Mike
+ *
+ */
+class UserMessedUpException extends Exception {
+	@Override
+	public String getMessage() {
+		return "User did not provide enough information.";
 	}
 }

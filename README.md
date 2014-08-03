@@ -19,8 +19,12 @@ There is no button to select the save destination, but clicking on the textfield
 
 Additional ideas for this program:
 ======================
-Adding an option that auto-refreshs the imageboard thread so that newly posted images will automatically download on autopilot (or when the user if AFK)
+~~Adding an option that auto-refreshs the imageboard thread so that newly posted images will automatically download on autopilot (or when the user if AFK)~~Added!
 
 Ability to download multiple imageboard threads at once
 
-A table that indicates the status of each file that is downloading
+V1.1 changes
+======================
+-Added auto-refresh
+-Cleaned up a lot of code
+-Made GUI updates more efficient
