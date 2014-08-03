@@ -24,7 +24,8 @@ There is no button to select the save destination, but clicking on the textfield
 Ability to download multiple imageboard threads at once
 
 ##V1.1 changes##
-
--Added auto-refresh
--Cleaned up a lot of code
--Made GUI updates more efficient
+<ul>
+<li>Added auto-refresh</li>
+<li>Cleaned up a lot of code</li>
+<li>Made GUI updates more efficient</li>
+</ul>
