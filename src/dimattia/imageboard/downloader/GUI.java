@@ -34,7 +34,6 @@ public class GUI extends JFrame {
 	private static JTextField txtpnThreadUrl;
 	private static JCheckBox chckbxDownloadWebm;
 	private static ThreadedDownloader tD;
-	private static Timer t;
 	private static JCheckBox chckbxAutorefreshThread;
 	private static JLabel statusLabel;
 	private static int refreshTime = -1;
@@ -97,7 +96,7 @@ public class GUI extends JFrame {
 					return;
 				}
 				// if (!dontDownload)
-				//t.start();
+				// t.start();
 			}
 		});
 		btnDownload.setBounds(468, 22, 137, 23);
@@ -116,7 +115,7 @@ public class GUI extends JFrame {
 				resetGUI();
 			}
 		});
-		
+
 		chckbxDownloadWebm = new JCheckBox("Get .webm's", true);
 		chckbxDownloadWebm.setBounds(261, 57, 102, 23);
 
@@ -128,43 +127,6 @@ public class GUI extends JFrame {
 
 		progressBar = new JProgressBar();
 		progressBar.setBounds(10, 89, 595, 20);
-
-		t = new Timer(500, new ActionListener() {
-			@Override
-			public void actionPerformed(ActionEvent e) {
-				System.out.println("checking for updates in GUI class <<--");
-				if (tD != null) {
-					progressBar.setValue(tD.getPercentDone());
-					statusLabel.setText(tD.getDownloadStatus());
-					if (tD.isDoneDownloading()
-							&& !chckbxAutorefreshThread.isSelected()) { // Images
-																		// downloaded,
-																		// not
-																		// in
-																		// autorefresh
-																		// mode
-						statusLabel.setText("Finished downloading");
-						progressBar.setValue(100);
-						JOptionPane.showMessageDialog(null,
-								"Thread has finished downloading",
-								"Downloading complete",
-								JOptionPane.INFORMATION_MESSAGE);
-						resetGUI();
-						t.stop();
-					} else if (tD.isDoneDownloading()) { // Images downloaded,
-															// now in auto
-															// refresh mode
-						tD.startAutoRefresh();
-						t.stop();
-						JOptionPane.showMessageDialog(null,
-								"Thread has finished downloading.\nAuto-refreshing every "
-										+ refreshTime + " seconds.",
-								"Downloading complete",
-								JOptionPane.INFORMATION_MESSAGE);
-					}
-				}
-			}
-		});
 
 		txtSaveDestination = new JTextField();
 		txtSaveDestination.addMouseListener(new MouseAdapter() {
@@ -290,7 +252,6 @@ public class GUI extends JFrame {
 	public static void resetGUI() {
 		statusLabel.setText("Status: waiting for user input");
 		progressBar.setValue(0);
-		t.stop();
 		chckbxAutorefreshThread.setEnabled(true);
 		btnDownload.setEnabled(true);
 		txtSaveDestination.setEnabled(true);
@@ -299,16 +260,11 @@ public class GUI extends JFrame {
 		spinner.setEnabled(true);
 		btnStop.setEnabled(false);
 	}
-	public static void updateGUI(){
 
-		System.out.println("updategui() called");
+	public static void updateGUI() {
 		if (tD != null) {
 			progressBar.setValue(tD.getPercentDone());
 			statusLabel.setText(tD.getDownloadStatus());
 		}
-	}
-	public static void redrawUpdates(String dlStatus, int progressBarVal) {
-		statusLabel.setText(dlStatus);
-		progressBar.setValue(progressBarVal);
 	}
 }

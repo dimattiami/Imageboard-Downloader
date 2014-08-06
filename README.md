@@ -29,3 +29,8 @@ Ability to download multiple imageboard threads at once
 <li>Cleaned up a lot of code</li>
 <li>Made GUI updates more efficient</li>
 </ul>
+
+##v1.2 changes##
+<ul>
+<li>Fixed incorrect progress bar display</li>
+</ul>

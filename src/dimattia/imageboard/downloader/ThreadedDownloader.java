@@ -10,6 +10,8 @@ import java.net.URL;
 import java.util.Iterator;
 import java.util.Vector;
 
+import javafx.util.converter.PercentageStringConverter;
+
 import javax.swing.JOptionPane;
 
 /**
@@ -103,17 +105,13 @@ public class ThreadedDownloader {
 		}
 	}
 
-	public void tellGuiToRedrawUpdates() {
-		GUI.redrawUpdates(status, getPercentDone());
-	}
-
 	/**
 	 * Set the requestStop flag to true, allowing running threads to halt
 	 * execution and updates the status
 	 */
 	public void stopDownload() {
 		requestStop = true;
-		status = "Status: Download stopped @ " + downloadCount + "/"
+		status = "Status: Download stopped @ " + downloadCount / 2 + "/"
 				+ imageLocations.size() + " files";
 		if (updateThread != null)
 			updateThread.interrupt();
@@ -162,8 +160,6 @@ public class ThreadedDownloader {
 		}
 		updateThread = new Thread(new AutoRefreshThread());
 		updateThread.start();
-		// updateThread.run();
-		// updateThread.interrupt();
 	}
 
 	/**
@@ -182,13 +178,16 @@ public class ThreadedDownloader {
 				requestStop = false;
 
 				do {
+					GUI.fillProgressBar();
 					autoRefreshCountdown();
-					downloadCount = imageLocations.size();
 					imageLocations = ImageFinder.getImageLinks(URL, getWebm);
+					downloadCount = imageLocations.size();
 					vecIterator = imageLocations.iterator();
 
 					status = "Status: Downloading new images";
-					tellGuiToRedrawUpdates();
+
+					GUI.updateGUI();
+					downloadCount = 0;
 					// MAKE SURE TO CALL run() AND DON'T PUT IN A THREAD,
 					// OTHERWISE A NEW THREAD IS STARTED !!
 					updater.run();
@@ -229,7 +228,7 @@ public class ThreadedDownloader {
 			}
 		}
 		status = "Status: Checking for updates";
-		tellGuiToRedrawUpdates();
+		GUI.updateGUI();
 	}
 
 	/**
@@ -252,8 +251,8 @@ public class ThreadedDownloader {
 					GUI.updateStatus();
 					break;
 				}
-				status = "Status: Downloading " + ((downloadCount / 2) + 1)
-						+ "/" + imageLocations.size();
+				status = "Status: Downloading " + downloadCount + "/"
+						+ imageLocations.size();
 				String curURL = null;
 				String fileName = null;
 				try {
@@ -268,17 +267,17 @@ public class ThreadedDownloader {
 					URL pictureURL = new URL(urlBeginning + curURL); // Connects
 																		// to
 																		// URL
-					synchronized (this) {
-						downloadCount++; // Increment amount of images
-											// downloaded
-					}
+					// synchronized (this) {
+					downloadCount++; // Increment amount of images
+										// downloaded
+					// }
 					// Check if file already exists, if does, skip downloading
 					if (new File(saveLocationStr + "\\" + fileName).exists()) {
 						// System.out.println(fileName+" Exists..");
 						continue;
 					}
 
-					GUI.redrawUpdates(status, getPercentDone());
+					GUI.updateGUI();
 
 					BufferedInputStream ins = new BufferedInputStream(
 							pictureURL.openStream()); // Creates reader for
