@@ -55,7 +55,7 @@ public class GUI extends JFrame {
 	 */
 	public GUI() {
 		setDefaultCloseOperation(EXIT_ON_CLOSE);
-		setTitle("Imageboard Downloader v1.1");
+		setTitle("Imageboard Downloader v1.2");
 
 		// Download button
 		btnDownload = new JButton("Download");
