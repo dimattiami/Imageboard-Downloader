@@ -4,6 +4,7 @@ import java.io.BufferedReader;
 import java.io.FileNotFoundException;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.util.Vector;
@@ -15,47 +16,59 @@ import java.util.Vector;
  *
  */
 public class ImageFinder {
-	private static boolean getWebm = true;
+	private final static String PICTUREURLREGEX = "href=\"//i.4cdn.org/";
+
+	private ImageFinder() {
+	}
 
 	/**
 	 * 
-	 * @param URL
+	 * @param url
 	 *            Thread URL
 	 * @param getW
 	 *            Download .webm filetype too?
-	 * 
-	 * @return The Vector holding image locations
+	 * @return A String vector holding locations of each image in specified
+	 *         thread URL
 	 * @throws FileNotFoundException
 	 *             if the thread 404's
 	 * @throws IOException
-	 *             any other errors that may occur
+	 *             any other IO exceptions that may occur
 	 */
-	public static Vector<String> getImageLinks(String URL, boolean getW)
+	public static Vector<String> getImageLinks(String url, boolean getW)
 			throws FileNotFoundException, IOException {
-		getWebm = getW;
-		Vector<String> imageLinks = new Vector<>();
-		URL tehURL = new URL(URL); // Creates URL
-		URLConnection tehConn = tehURL.openConnection(); // Connects to URL
+
+		Vector<String> imageLinks = new Vector<String>();
+		URLConnection conn = new URL(url).openConnection();
 
 		BufferedReader readr = new BufferedReader(new InputStreamReader(
-				tehConn.getInputStream())); // Creates source page reader
-		String pageSource = readr.readLine(); // Stores page source in
-												// pageSource
-		// System.out.println(pageSource);
-		String pictureURLRegex = "href=\"//i.4cdn.org/"; // Looks for this
-															// string - the
-															// starting code of
-															// a posted image
-		String[] splitString = pageSource.split(pictureURLRegex);
+				conn.getInputStream())); // Creates source page reader
+
+		String[] splitString = readr.readLine().split(PICTUREURLREGEX);
 
 		String fileName;
 		for (int i = 1; i < splitString.length; i += 2) {
 			fileName = splitString[i].split("\"")[0];
-			if (fileName.endsWith(".webm") && !getWebm)
-				; // Do nothing - this is webm & user does not want them
-			else
+			if (!fileName.endsWith(".webm")
+					|| (fileName.endsWith(".webm") && getW))
 				imageLinks.add(fileName);
 		}
 		return imageLinks;
+	}
+
+	/**
+	 * Checks whether provided URL is valid
+	 * 
+	 * @param URL
+	 *            url to check
+	 * @return true if the URL is valid, false if the URL is invalid
+	 */
+	public static boolean isURLValid(String URL) {
+		try {
+			new BufferedReader(new InputStreamReader(new URL(URL)
+					.openConnection().getInputStream()));
+		} catch (Exception e) {
+			return false;
+		}
+		return true;
 	}
 }

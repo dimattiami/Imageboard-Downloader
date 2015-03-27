@@ -1,270 +1,257 @@
 package dimattia.imageboard.downloader;
 
+import java.awt.BorderLayout;
+import java.awt.Dimension;
+import java.awt.FlowLayout;
+import java.awt.GridLayout;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
-import java.awt.event.MouseAdapter;
-import java.awt.event.MouseEvent;
 import java.io.FileNotFoundException;
 import java.io.IOException;
+import java.util.List;
 
 import javax.swing.JButton;
 import javax.swing.JCheckBox;
+import javax.swing.JDialog;
 import javax.swing.JFileChooser;
 import javax.swing.JFrame;
 import javax.swing.JLabel;
 import javax.swing.JOptionPane;
-import javax.swing.JProgressBar;
-import javax.swing.JSpinner;
+import javax.swing.JPanel;
+import javax.swing.JRootPane;
+import javax.swing.JScrollPane;
+import javax.swing.JTable;
 import javax.swing.JTextField;
-import javax.swing.SpinnerNumberModel;
-import javax.swing.Timer;
+import javax.swing.ListSelectionModel;
+import javax.swing.table.DefaultTableModel;
 
-/**
- * Contains the GUI for the imageboard downloader
- * 
- * @author Mike
- *
- */
-public class GUI extends JFrame {
-	private static JTextField txtSaveDestination;
-	private static JSpinner spinner;
-	private static JButton btnStop;
-	private static JButton btnDownload;
-	private static JProgressBar progressBar;
-	private static JTextField txtpnThreadUrl;
-	private static JCheckBox chckbxDownloadWebm;
-	private static ThreadedDownloader tD;
-	private static JCheckBox chckbxAutorefreshThread;
-	private static JLabel statusLabel;
-	private static int refreshTime = -1;
-	private JLabel lblThreads;
-	private JLabel lblThreadLink;
-	private JLabel lblSaveDestination;
+public class GUI extends JFrame implements ActionListener {
+	private JButton buttonAdd, buttonResume, buttonStop, buttonDelete;
+	private JTable downloadTable;
+	private DefaultTableModel tableModel;
+	private ThreadManager threadManager;
 
-	/**
-	 * Main method
-	 * 
-	 * @param args
-	 */
-	public static void main(String[] args) {
+	public GUI() {
+		super("ImageBoard Downloader V2");
+		setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+
+		threadManager = ThreadManager.getInstance(this);
+
+		buildGUI();
+
+		setVisible(true);
+		pack();
+	}
+
+	public void buildGUI() {
+		buildTable();
+		buildButtonPane();
+	}
+
+	@SuppressWarnings("serial")
+	private void buildTable() {
+		tableModel = new DefaultTableModel(new Object[] { "Thread",
+				"Save Location", "Webm", "Progress", "Status" }, 0) {
+			@Override
+			public boolean isCellEditable(int row, int column) {
+				return false;
+			}
+
+		};
+		downloadTable = new JTable(tableModel);
+		downloadTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+		JScrollPane table = new JScrollPane(downloadTable);
+		table.setPreferredSize(new Dimension(520, 80));
+
+		add(table);
+	}
+	
+	public void updateTable() {
+		int lastSelected = downloadTable.getSelectedRow();
+		tableModel.setRowCount(0);
+		try {
+			for (int i = 0; i < threadManager.getThreadCount(); i++) {
+				tableModel.addRow(threadManager.getThreadInfo(i));
+			}
+		} catch (Exception x) {
+
+		}
+		if (lastSelected != -1 && tableModel.getRowCount() != lastSelected)
+			downloadTable.setRowSelectionInterval(lastSelected, lastSelected);
+	}
+
+	private void buildButtonPane() {
+		JPanel buttonPanel = new JPanel(new GridLayout(0, 1));
+
+		buttonAdd = new JButton("Add thread");
+		buttonAdd.addActionListener(this);
+		buttonResume = new JButton("Resume download");
+		buttonResume.addActionListener(this);
+		buttonStop = new JButton("Stop download");
+		buttonStop.addActionListener(this);
+		buttonDelete = new JButton("Delete thread");
+		buttonDelete.addActionListener(this);
+
+		buttonPanel.add(buttonAdd);
+		buttonPanel.add(buttonResume);
+		buttonPanel.add(buttonStop);
+		buttonPanel.add(buttonDelete);
+
+		add(buttonPanel, BorderLayout.EAST);
+
+	}
+
+	public static void main(String[] args) throws InterruptedException {
 		new GUI();
 	}
 
-	/**
-	 * Builds the GUI
-	 */
-	public GUI() {
-		setDefaultCloseOperation(EXIT_ON_CLOSE);
-		setTitle("Imageboard Downloader v1.2");
+	public void actionPerformed(ActionEvent e) {
+		int selectedRow = downloadTable.getSelectedRow();
+		if (selectedRow == -1 && e.getSource() != buttonAdd)
+			return;
+		Downloader curThread = null;
+		if (e.getSource() != buttonAdd)
+			curThread = threadManager.getThread(selectedRow);
 
-		// Download button
-		btnDownload = new JButton("Download");
-		btnDownload.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mouseClicked(MouseEvent e) {
-				// boolean dontDownload = false;
-				if (!btnDownload.isEnabled())
-					return;
-				disableGUI();
-				if (tD != null)
-					tD = null; // Safecheck to remove old instances of
-								// downloader
-								// if exist
+		if (e.getSource() == buttonAdd) {
+			Object[] addThread = new AddThreadDialog(this).getInfo();
+
+			if (addThread[0] == null)
+				return;
+
+			addThread[2] = (Integer) addThread[2] == 1 ? true : false;
+
+			threadManager.addThread((String) addThread[0],
+					(Boolean) addThread[2], (String) addThread[1]);
+
+		} else if (e.getSource() == buttonResume) {
+			threadManager.resumeThread(selectedRow);
+
+		} else if (e.getSource() == buttonStop) {
+			try {
+				threadManager.stopThread(selectedRow);
+			} catch (Exception ex) {
+				JOptionPane
+						.showMessageDialog(
+								null,
+								"An error occured while trying to stop selected thread",
+								"Error", JOptionPane.ERROR_MESSAGE);
+			}
+		} else if (e.getSource() == buttonDelete) {
+			if (curThread.getStatus().equalsIgnoreCase("done")
+					|| curThread.getStatus().equalsIgnoreCase("stopped")) {
 				try {
-					tD = new ThreadedDownloader(txtpnThreadUrl.getText(),
-							txtSaveDestination.getText(), (int) spinner
-									.getValue(), chckbxDownloadWebm
-									.isSelected(), refreshTime);
-				} catch (FileNotFoundException fExc) { // Notify user that
-														// thread 404ed
-					GUI.resetGUI();
-					JOptionPane.showMessageDialog(null,
-							"Thread 404; unable to download.", "404",
-							JOptionPane.WARNING_MESSAGE);
-					// dontDownload = true;
-					return;
-				} catch (IOException exc) { // Other error catching
-					GUI.resetGUI();
-					JOptionPane.showMessageDialog(null,
-							"An error has occurred:\n" + exc.getMessage(),
-							"Error", JOptionPane.WARNING_MESSAGE);
-					// dontDownload = true;
-					return;
-				} catch (UserMessedUpException e1) {
-					GUI.resetGUI();
-					// dontDownload = true;
-					return;
+					if (selectedRow == downloadTable.getRowCount() - 1
+							&& selectedRow != 0)
+						downloadTable.setRowSelectionInterval(selectedRow - 1,
+								selectedRow - 1);
+					threadManager.removeThread(selectedRow);
+				} catch (Exception e1) {
+					e1.printStackTrace();
 				}
-				// if (!dontDownload)
-				// t.start();
+				return;
 			}
-		});
-		btnDownload.setBounds(468, 22, 137, 23);
+			System.out.println("Stop thread before removing");
+		}
+	}
+}
 
-		// Stop button
-		btnStop = new JButton("Stop Download");
-		btnStop.setEnabled(false);
-		btnStop.setBounds(468, 57, 137, 23);
-		btnStop.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent e) {
-				if (!btnStop.isEnabled())
-					return;
-				if (tD != null)
-					tD.stopDownload();
-				statusLabel.setText(tD.getDownloadStatus());
-				resetGUI();
-			}
-		});
+class AddThreadDialog extends JDialog implements ActionListener {
+	private JTextField textfieldThreadUrl, textfieldSavLoc;
+	private JCheckBox checkboxGetWebm;
+	private JButton buttonAddThread, buttonCancel, buttonSaveLoc;
+	private String threadUrl, saveLoc;
+	private int getWebm;
 
-		chckbxDownloadWebm = new JCheckBox("Get .webm's", true);
-		chckbxDownloadWebm.setBounds(261, 57, 102, 23);
+	public AddThreadDialog(JFrame owner) {
+		super(owner, "Add new thread", true);
 
-		spinner = new JSpinner();
-		spinner.setModel(new SpinnerNumberModel(1, 1, 10, 1));
-		spinner.setBounds(218, 58, 37, 20);
-		txtpnThreadUrl = new JTextField();
-		txtpnThreadUrl.setBounds(10, 23, 445, 20);
+		buildInput();
+		buildButtons();
 
-		progressBar = new JProgressBar();
-		progressBar.setBounds(10, 89, 595, 20);
-
-		txtSaveDestination = new JTextField();
-		txtSaveDestination.addMouseListener(new MouseAdapter() {
-			@Override
-			public void mousePressed(MouseEvent e) {
-				if (!txtSaveDestination.isEnabled())
-					return;
-				JFileChooser fC = new JFileChooser();
-				fC.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
-				fC.showSaveDialog(null);
-				try {
-					txtSaveDestination.setText(fC.getSelectedFile()
-							.getAbsolutePath());
-				} catch (NullPointerException ex) {
-				}
-			}
-		});
-		txtSaveDestination.setBounds(10, 58, 143, 20);
-		txtSaveDestination.setColumns(10);
-
-		lblThreads = new JLabel("Threads: ");
-		lblThreads.setBounds(163, 61, 54, 14);
-		getContentPane().setLayout(null);
-
-		chckbxAutorefreshThread = new JCheckBox("Auto-refresh");
-		chckbxAutorefreshThread.addActionListener(new ActionListener() {
-			public void actionPerformed(ActionEvent e) {
-				String userInput = null;
-				boolean errorOccured = false;
-				int updateSeconds = -1;
-				if (chckbxAutorefreshThread.isSelected()) {
-
-					do {
-						errorOccured = false;
-						userInput = JOptionPane
-								.showInputDialog("How often to refresh thread? (1-300 seconds)");
-						if (userInput == null || userInput.equals("")) { // user
-																			// cancelled
-																			// input
-							updateSeconds = -1;
-							chckbxAutorefreshThread.setSelected(false);
-							break;
-						}
-						try {
-							updateSeconds = Integer.parseInt(userInput);
-						} catch (Exception ex) {
-							errorOccured = true;
-						}
-					} while (updateSeconds < 1 || updateSeconds > 300
-							|| errorOccured);
-				} else { // User is deselecting the box
-					updateSeconds = -1;
-				}
-				refreshTime = updateSeconds;
-			}
-		});
-		chckbxAutorefreshThread.setBounds(365, 57, 102, 23);
-		getContentPane().add(chckbxAutorefreshThread);
-		getContentPane().add(progressBar);
-		getContentPane().add(txtSaveDestination);
-		getContentPane().add(chckbxDownloadWebm);
-		getContentPane().add(spinner);
-		getContentPane().add(lblThreads);
-		getContentPane().add(btnStop);
-		getContentPane().add(txtpnThreadUrl);
-		getContentPane().add(btnDownload);
-
-		lblThreadLink = new JLabel("Thread URL");
-		lblThreadLink.setBounds(10, 9, 73, 14);
-		getContentPane().add(lblThreadLink);
-
-		lblSaveDestination = new JLabel("Save destination");
-		lblSaveDestination.setBounds(10, 44, 143, 14);
-		getContentPane().add(lblSaveDestination);
-
-		statusLabel = new JLabel("Status: waiting for user input");
-		statusLabel.setBounds(10, 112, 595, 14);
-		getContentPane().add(statusLabel);
-
-		setSize(622, 157);
-		setResizable(false);
+		pack();
 		setVisible(true);
 	}
 
 	/**
-	 * Updates the status of 'status' label on GUI
+	 * 
+	 * @return an array of the objects thread URL String, save location string,
+	 *         and webm boolean
 	 */
-	public static void updateStatus() {
-		try {
-			if (tD == null) {
-				return;
+	public Object[] getInfo() {
+		return new Object[] { threadUrl, saveLoc, getWebm };
+	}
+
+	public void buildInput() {
+		JPanel input = new JPanel(new GridLayout(0, 1));
+		JPanel topLevel = new JPanel(new FlowLayout());
+		JPanel bottomLevel = new JPanel(new FlowLayout());
+
+		JLabel labelInputThread = new JLabel("Thread URL:");
+		JLabel labelSavLoc = new JLabel("Save Location:");
+
+		buttonSaveLoc = new JButton("...");
+		buttonSaveLoc.addActionListener(this);
+
+		textfieldThreadUrl = new JTextField(20);
+		textfieldSavLoc = new JTextField(22);
+
+		textfieldSavLoc.setText("f:\\temp\\");
+
+		checkboxGetWebm = new JCheckBox("Get webm", true);
+
+		topLevel.add(labelInputThread);
+		topLevel.add(textfieldThreadUrl);
+		topLevel.add(checkboxGetWebm);
+
+		bottomLevel.add(labelSavLoc);
+		bottomLevel.add(textfieldSavLoc);
+		bottomLevel.add(buttonSaveLoc);
+
+		input.add(topLevel);
+		input.add(bottomLevel);
+
+		add(input);
+	}
+
+	public void buildButtons() {
+		JPanel buttonPanel = new JPanel(new FlowLayout());
+		buttonAddThread = new JButton("Add thread");
+		buttonCancel = new JButton("Cancel");
+
+		buttonAddThread.addActionListener(this);
+		buttonCancel.addActionListener(this);
+
+		buttonPanel.add(buttonAddThread);
+		buttonPanel.add(buttonCancel);
+		add(buttonPanel, BorderLayout.SOUTH);
+	}
+
+	public void actionPerformed(ActionEvent e) {
+		if (e.getSource() == buttonAddThread) {
+			threadUrl = textfieldThreadUrl.getText();
+			saveLoc = textfieldSavLoc.getText();
+			getWebm = checkboxGetWebm.isSelected() ? 1 : 0;
+			if (!threadUrl.startsWith("http://")
+					&& !threadUrl.startsWith("https://"))
+				threadUrl = "http://" + threadUrl;
+			if (ImageFinder.isURLValid(threadUrl)) {
+				dispose();
+			} else {
+				threadUrl = null;
+				JOptionPane.showMessageDialog(null,
+						"Please provide a valid thread URL", "Invalid URL",
+						JOptionPane.ERROR_MESSAGE);
 			}
-			statusLabel.setText(tD.getDownloadStatus());
-		} catch (Exception ex) {
-			ex.printStackTrace();
-		}
-	}
-
-	/**
-	 * Fills the progress bar completely
-	 */
-	public static void fillProgressBar() {
-		if (progressBar.getValue() != 100)
-			progressBar.setValue(100);
-	}
-
-	/**
-	 * Disables GUI buttons because the downloader is running
-	 */
-	public static void disableGUI() {
-		btnDownload.setEnabled(false);
-		chckbxAutorefreshThread.setEnabled(false);
-		txtSaveDestination.setEnabled(false);
-		txtpnThreadUrl.setEnabled(false);
-		chckbxDownloadWebm.setEnabled(false);
-		spinner.setEnabled(false);
-		btnStop.setEnabled(true);
-	}
-
-	/**
-	 * Resets the GUI to starting state
-	 */
-	public static void resetGUI() {
-		statusLabel.setText("Status: waiting for user input");
-		progressBar.setValue(0);
-		chckbxAutorefreshThread.setEnabled(true);
-		btnDownload.setEnabled(true);
-		txtSaveDestination.setEnabled(true);
-		txtpnThreadUrl.setEnabled(true);
-		chckbxDownloadWebm.setEnabled(true);
-		spinner.setEnabled(true);
-		btnStop.setEnabled(false);
-	}
-
-	public static void updateGUI() {
-		if (tD != null) {
-			progressBar.setValue(tD.getPercentDone());
-			statusLabel.setText(tD.getDownloadStatus());
+		} else if (e.getSource() == buttonCancel) {
+			threadUrl = null;
+			dispose();
+		} else if (e.getSource() == buttonSaveLoc) {
+			JFileChooser fC = new JFileChooser();
+			fC.setFileSelectionMode(JFileChooser.DIRECTORIES_ONLY);
+			int returnValue = fC.showOpenDialog(this);
+			if (returnValue == JFileChooser.APPROVE_OPTION)
+				textfieldSavLoc.setText(fC.getSelectedFile().toString());
 		}
 	}
 }
