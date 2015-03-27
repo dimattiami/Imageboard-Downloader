@@ -19,9 +19,9 @@ There is no button to select the save destination, but clicking on the textfield
 
 ##Additional ideas for this program:##
 
-<s>Adding an option that auto-refreshs the imageboard thread so that newly posted images will automatically download on autopilot (or when the user if AFK)</s> Added!
+<s>Adding an option that auto-refreshs the imageboard thread so that newly posted images will automatically download on autopilot (or when the user if AFK)</s> Added! (in v1.1, v1.2)
 
-Ability to download multiple imageboard threads at once
+<s>Ability to download multiple imageboard threads at once</s> Added (v2)
 
 ##V1.1 changes##
 <ul>
@@ -33,4 +33,11 @@ Ability to download multiple imageboard threads at once
 ##v1.2 changes##
 <ul>
 <li>Fixed incorrect progress bar display</li>
+</ul>
+
+##v2 changes##
+<ul>
+<li>GUI changed</li>
+<li>Download multiple imageboard threads at once</li>
+<li>Removed autorefresh.. Will be added back in next version</li>
 </ul>
